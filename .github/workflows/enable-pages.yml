@@ -1,0 +1,49 @@
+name: Enable GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+
+jobs:
+  enable:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable Pages from the default branch root
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const source = { branch: "main", path: "/" };
+            try {
+              const created = await github.rest.repos.createPagesSite({
+                owner,
+                repo,
+                build_type: "legacy",
+                source,
+              });
+              core.info(`created ${created.data.html_url || ""}`);
+            } catch (error) {
+              if (error.status !== 409) {
+                core.setFailed(`${error.status || ""} ${error.message}`);
+                return;
+              }
+              core.info("Pages site already exists; updating source");
+              const updated = await github.rest.repos.updateInformationAboutPagesSite({
+                owner,
+                repo,
+                build_type: "legacy",
+                source,
+              });
+              core.info(`updated ${updated.data.html_url || ""}`);
+            }
+            try {
+              await github.rest.repos.requestPagesBuild({ owner, repo });
+              core.info("requested pages build");
+            } catch (error) {
+              core.warning(`build request failed: ${error.status || ""} ${error.message}`);
+            }
